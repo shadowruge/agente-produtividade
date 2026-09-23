@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agente de produtividade</title>
+<style>
+  :root {
+    --bg: #e8edf1;
+    --painel: #f6f8fa;
+    --tinta: #17222d;
+    --suave: #5e6e7d;
+    --linha: #cfd8df;
+    --petroleo: #0f6b6f;
+    --petroleo-escuro: #0b5155;
+    --ok: #2e8b57;
+    --erro: #b3372f;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10171d;
+      --painel: #18212a;
+      --tinta: #e6edf2;
+      --suave: #93a3b1;
+      --linha: #2a3743;
+      --petroleo: #2aa3a8;
+      --petroleo-escuro: #37b7bc;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--tinta); line-height: 1.5; }
+  button, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--petroleo); outline-offset: 2px; }
+
+  .app { display: grid; grid-template-columns: 280px 1fr; height: 100%; }
+
+  aside {
+    background: var(--painel);
+    border-right: 1px solid var(--linha);
+    padding: 24px 20px;
+    display: flex; flex-direction: column; gap: 28px;
+    overflow-y: auto;
+  }
+  h1 { font-size: 1.15rem; font-weight: 650; letter-spacing: -0.01em; margin: 0; }
+  aside p { margin: 4px 0 0; color: var(--suave); font-size: .875rem; }
+
+  .conexoes { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .conexoes li { display: flex; align-items: center; gap: 10px; font-size: .9rem; }
+  .conexoes small { display: block; color: var(--suave); font-size: .78rem; }
+  .ponto { width: 9px; height: 9px; border-radius: 50%; background: var(--suave); flex: none; }
+  .ponto.ok { background: var(--ok); }
+  .ponto.falha { background: var(--erro); }
+
+  .nova {
+    margin-top: auto;
+    border: 1px solid var(--linha); background: transparent;
+    border-radius: 8px; padding: 9px 12px; cursor: pointer; text-align: left;
+  }
+  .nova:hover { border-color: var(--petroleo); color: var(--petroleo-escuro); }
+
+  main { display: flex; flex-direction: column; min-width: 0; height: 100%; }
+  #mensagens { flex: 1; overflow-y: auto; padding: 32px clamp(16px, 6vw, 72px); }
+  .coluna { max-width: 720px; margin: 0 auto; display: grid; gap: 22px; }
+
+  .vazio h2 { font-size: 1.6rem; font-weight: 650; letter-spacing: -0.02em; margin: 8vh 0 6px; }
+  .vazio p { color: var(--suave); margin: 0 0 20px; max-width: 46ch; }
+  .sugestoes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sugestoes button {
+    background: var(--painel); border: 1px solid var(--linha);
+    border-radius: 999px; padding: 8px 14px; cursor: pointer; font-size: .9rem;
+  }
+  .sugestoes button:hover { border-color: var(--petroleo); color: var(--petroleo-escuro); }
+
+  .msg { display: grid; gap: 6px; }
+  .msg.eu { justify-items: end; }
+  .msg .texto { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
+  .msg.eu .texto {
+    background: var(--petroleo); color: #fff;
+    padding: 9px 14px; border-radius: 14px 14px 4px 14px; max-width: 85%;
+  }
+  .msg.agente .texto { border-left: 3px solid var(--petroleo); padding-left: 14px; }
+  .msg.erro .texto { border-left-color: var(--erro); color: var(--erro); }
+  .uso { font-size: .78rem; color: var(--suave); padding-left: 17px; }
+  .digitando .texto { color: var(--suave); }
+
+  form {
+    border-top: 1px solid var(--linha); background: var(--painel);
+    padding: 14px clamp(16px, 6vw, 72px);
+  }
+  .campo { max-width: 720px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end; }
+  textarea {
+    flex: 1; resize: none; max-height: 160px;
+    background: var(--bg); border: 1px solid var(--linha); border-radius: 10px;
+    padding: 10px 12px;
+  }
+  textarea:focus-visible { border-color: var(--petroleo); outline-offset: 0; }
+  .enviar {
+    background: var(--petroleo); color: #fff; border: 0; border-radius: 10px;
+    padding: 10px 18px; cursor: pointer; font-weight: 600;
+  }
+  .enviar:hover { background: var(--petroleo-escuro); }
+  .enviar:disabled { opacity: .5; cursor: default; }
+
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    aside { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 12px 16px; gap: 12px 20px; border-right: 0; border-bottom: 1px solid var(--linha); }
+    aside p, .conexoes small { display: none; }
+    .conexoes { grid-auto-flow: column; gap: 14px; }
+    .nova { margin: 0 0 0 auto; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div>
+      <h1>Agente de produtividade</h1>
+      <p id="modelo">Carregando…</p>
+    </div>
+    <ul class="conexoes" aria-label="Conexões">
+      <li><span class="ponto" id="p-ollama"></span><span>Ollama<small id="s-ollama"></small></span></li>
+      <li><span class="ponto" id="p-google"></span><span>Google<small id="s-google"></small></span></li>
+      <li><span class="ponto" id="p-notion"></span><span>Notion<small id="s-notion"></small></span></li>
+    </ul>
+    <button class="nova" id="nova" type="button">Nova conversa</button>
+  </aside>
+
+  <main>
+    <div id="mensagens" aria-live="polite">
+      <div class="coluna" id="coluna">
+        <section class="vazio" id="vazio">
+          <h2>O que vamos organizar hoje?</h2>
+          <p>Consulto sua agenda, leio seus e-mails, crio rascunhos e registro notas no Notion.</p>
+          <div class="sugestoes">
+            <button type="button">O que tenho na agenda esta semana?</button>
+            <button type="button">Resuma meus e-mails não lidos</button>
+            <button type="button">Marque uma reunião amanhã às 14h</button>
+            <button type="button">Anote no Notion: revisar proposta</button>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <form id="form">
+      <div class="campo">
+        <textarea id="entrada" rows="1" placeholder="Escreva sua mensagem" aria-label="Mensagem" maxlength="4000"></textarea>
+        <button class="enviar" id="enviar" type="submit">Enviar</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<script>
+  const ROTULOS = {
+    listar_eventos: "Agenda", criar_evento: "Agenda",
+    listar_emails: "Gmail", ler_email: "Gmail", criar_rascunho: "Gmail",
+    buscar_notion: "Notion", criar_nota: "Notion",
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const coluna = $("coluna"), scroller = $("mensagens");
+  const entrada = $("entrada"), enviar = $("enviar");
+  let sessao = sessionStorage.getItem("sessao") || crypto.randomUUID();
+  sessionStorage.setItem("sessao", sessao);
+  let ocupado = false;
+
+  function rolar() { scroller.scrollTop = scroller.scrollHeight; }
+
+  function adicionar(classe, texto, ferramentas) {
+    const el = document.createElement("div");
+    el.className = "msg " + classe;
+    const t = document.createElement("div");
+    t.className = "texto";
+    t.textContent = texto;
+    el.appendChild(t);
+    if (ferramentas && ferramentas.length) {
+      const u = document.createElement("div");
+      u.className = "uso";
+      u.textContent = "Usou: " + [...new Set(ferramentas.map((f) => ROTULOS[f] || f))].join(", ");
+      el.appendChild(u);
+    }
+    coluna.appendChild(el);
+    rolar();
+    return el;
+  }
+
+  async function enviarMensagem(texto) {
+    texto = texto.trim();
+    if (!texto || ocupado) return;
+    const vazio = $("vazio");
+    if (vazio) vazio.remove();
+
+    ocupado = true; enviar.disabled = true;
+    adicionar("eu", texto);
+    const aguarde = adicionar("agente digitando", "Pensando…");
+    try {
+      const r = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessao, mensagem: texto }),
+      });
+      const dados = await r.json();
+      aguarde.remove();
+      if (!r.ok) adicionar("agente erro", dados.detail || "Erro ao falar com o agente.");
+      else adicionar("agente", dados.resposta, dados.ferramentas);
+    } catch (e) {
+      aguarde.remove();
+      adicionar("agente erro", "Não consegui alcançar o servidor. Verifique se o main.py está rodando.");
+    } finally {
+      ocupado = false; enviar.disabled = false; entrada.focus();
+    }
+  }
+
+  $("form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const texto = entrada.value;
+    entrada.value = ""; ajustarAltura();
+    enviarMensagem(texto);
+  });
+
+  entrada.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      $("form").requestSubmit();
+    }
+  });
+
+  function ajustarAltura() {
+    entrada.style.height = "auto";
+    entrada.style.height = Math.min(entrada.scrollHeight, 160) + "px";
+  }
+  entrada.addEventListener("input", ajustarAltura);
+
+  document.querySelectorAll(".sugestoes button").forEach((b) =>
+    b.addEventListener("click", () => enviarMensagem(b.textContent))
+  );
+
+  $("nova").addEventListener("click", async () => {
+    await fetch("/api/reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessao }),
+    }).catch(() => {});
+    sessao = crypto.randomUUID();
+    sessionStorage.setItem("sessao", sessao);
+    location.reload();
+  });
+
+  function marcar(nome, ok, textoOk, textoFalha) {
+    $("p-" + nome).className = "ponto " + (ok ? "ok" : "falha");
+    $("s-" + nome).textContent = ok ? textoOk : textoFalha;
+  }
+
+  fetch("/api/status").then((r) => r.json()).then((s) => {
+    $("modelo").textContent = "Modelo: " + s.modelo;
+    marcar("ollama", s.ollama, "Conectado", "Inicie o Ollama (ollama serve)");
+    marcar("google", s.google, "Autorizado", "Rode: python main.py --auth");
+    marcar("notion", s.notion, "Configurado", "Defina NOTION_TOKEN no .env");
+  }).catch(() => { $("modelo").textContent = "Servidor indisponível"; });
+
+  entrada.focus();
+</script>
+</body>
+</html>
