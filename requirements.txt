@@ -4,14 +4,21 @@ langchain>=0.3.0,<1.0
 langchain-community>=0.3.0,<1.0
 langchain-ollama>=0.2.0
 
-# Protocolos e Controle de Servidores MCP (ainda não usado pelo código abaixo)
+# Protocolo MCP: carregamento opcional de ferramentas de servidores MCP
+# externos (ver config/mcp_config.py). Se MCP_SERVERS não for configurado,
+# essas libs ficam ociosas e o agente roda normalmente só com as ferramentas
+# nativas (Google/Gmail/Notion).
 mcp>=1.20.0,<2.0.0
+langchain-mcp-adapters>=0.1.0,<0.2.0
+
+# Configuração
 pydantic>=2.8.0,<3.0.0
+pydantic-settings>=2.5.0,<3.0.0
 python-dotenv==1.0.1
 
 # Interface web
 fastapi>=0.115.0
-uvicorn>=0.30.0
+uvicorn[standard]>=0.30.0
 
 # Integração Google (APIs Oficiais)
 google-api-python-client>=2.100.0

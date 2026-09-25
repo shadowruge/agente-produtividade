@@ -1,6 +1,7 @@
 import argparse
 
 import config  # noqa: F401  (carrega o .env)
+from config.settings import get_settings
 
 
 def modo_cli() -> None:
@@ -20,11 +21,18 @@ def modo_cli() -> None:
 
 
 def main() -> None:
+    settings = get_settings()
+
     p = argparse.ArgumentParser(description="Agente de produtividade")
     p.add_argument("--cli", action="store_true", help="usar o chat no terminal em vez da interface web")
     p.add_argument("--auth", action="store_true", help="apenas autorizar a conta Google e sair")
-    p.add_argument("--host", default="127.0.0.1", help="use 127.0.0.1: a interface acessa seu e-mail e agenda")
-    p.add_argument("--port", type=int, default=8000)
+    p.add_argument(
+        "--host",
+        default=settings.host,
+        help="use 127.0.0.1 localmente: a interface acessa seu e-mail e agenda. "
+        "Em produção (Render) use 0.0.0.0.",
+    )
+    p.add_argument("--port", type=int, default=settings.port)
     args = p.parse_args()
 
     if args.auth:

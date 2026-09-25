@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: agente-produtividade
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn web.server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      # Gerado automaticamente pelo Render na primeira vez (generateValue).
+      # Depois disso, copie o valor gerado e use no header
+      # "Authorization: Bearer <valor>" ao chamar /api/chat e /api/reset.
+      - key: API_AUTH_TOKEN
+        generateValue: true
+      - key: TIMEZONE
+        value: America/Sao_Paulo
+      # IMPORTANTE: aponte para um Ollama acessível pela internet (não roda
+      # no próprio Render). Veja DEPLOY.md.
+      - key: OLLAMA_BASE_URL
+        sync: false
+      - key: OLLAMA_MODEL
+        value: qwen2.5:7b
+      # Suba credentials.json e token.json como "Secret Files" no painel do
+      # Render (Environment → Secret Files), nos caminhos abaixo.
+      - key: GOOGLE_CREDENTIALS_FILE
+        value: credentials.json
+      - key: GOOGLE_TOKEN_FILE
+        value: token.json
+      - key: NOTION_TOKEN
+        sync: false
+      - key: NOTION_DATABASE_ID
+        sync: false
+      - key: NOTION_TITLE_PROP
+        value: Name
+      - key: MCP_SERVERS
+        sync: false
