@@ -13,11 +13,14 @@ concurrency:
 
 jobs:
   verificar:
-    runs-on: ubuntu-latest
+    # Fixado em 24.04 em vez de `ubuntu-latest`: o rótulo flutuante já foi
+    # anunciado para migrar para o Ubuntu 26, e uma imagem nova pode mudar
+    # o resultado do lint sem que nada no repositório tenha mudado.
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
           cache: pip
