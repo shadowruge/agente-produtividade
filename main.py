@@ -1,6 +1,7 @@
 import argparse
 
-import config  # noqa: F401  (carrega o .env)
+# Importa o pacote config por efeito colateral: é ele que carrega o .env.
+import config  # noqa: F401
 from config.settings import get_settings
 
 
@@ -24,7 +25,9 @@ def main() -> None:
     settings = get_settings()
 
     p = argparse.ArgumentParser(description="Agente de produtividade")
-    p.add_argument("--cli", action="store_true", help="usar o chat no terminal em vez da interface web")
+    p.add_argument(
+        "--cli", action="store_true", help="usar o chat no terminal em vez da interface web"
+    )
     p.add_argument("--auth", action="store_true", help="apenas autorizar a conta Google e sair")
     p.add_argument(
         "--host",

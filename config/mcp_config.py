@@ -54,7 +54,12 @@ async def load_mcp_tools() -> list[BaseTool]:
     try:
         client = MultiServerMCPClient(servers)
         tools = await client.get_tools()
-    except Exception:  # noqa: BLE001 - qualquer falha aqui não deve derrubar o agente
+    # O except é amplo de propósito: um servidor MCP fora do ar, um token
+    # expirado, um JSON malformado — nenhuma dessas falhas deve impedir o
+    # agente de funcionar com as ferramentas nativas. (BLE001 é o código
+    # do ruff para "blind except"; o logger.exception abaixo registra o
+    # motivo, então a perda de rastreabilidade não existe.)
+    except Exception:
         logger.exception("Falha ao carregar ferramentas dos servidores MCP configurados.")
         return []
 

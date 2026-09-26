@@ -3,3 +3,19 @@ credentials.json
 token.json
 __pycache__/
 .venv/
+
+# Configuração escrita pela tela /config (contém chaves de API).
+# Fora do git e criado com permissão 0600 pelo próprio servidor.
+.config.local.json
+.config.local.json.tmp
+
+# Cache de ferramentas
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# Sistema operacional / editores
+.DS_Store
+Thumbs.db
+*.swp

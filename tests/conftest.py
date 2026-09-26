@@ -1,16 +1,19 @@
 from unittest.mock import MagicMock
 
 import pytest
+from fastapi.testclient import TestClient
 
+from config import secrets_store
 from config.settings import get_settings, reset_settings_cache
 
 
 @pytest.fixture(autouse=True)
-def _env_base(monkeypatch):
+def _env_base(monkeypatch, tmp_path):
     """Ambiente mínimo e isolado para cada teste.
 
-    Garante que nenhum teste dependa do .env real do desenvolvedor, e que
-    o cache de Settings (lru_cache) seja resetado entre testes.
+    Garante que nenhum teste dependa do .env real do desenvolvedor, do
+    arquivo de configuração local (.config.local.json) ou do cache de
+    Settings (lru_cache).
     """
     # Definimos cada variável explicitamente (em vez de só apagar) porque um
     # eventual .env real do projeto (na raiz) também seria lido pelo
@@ -31,6 +34,8 @@ def _env_base(monkeypatch):
         "NOTION_TITLE_PROP": "Name",
         "MCP_SERVERS": "",
         "CORS_ORIGINS": "",
+        "ENABLED_TOOLS": "",
+        "SKILLS": "",
     }
     for var, valor in padrao.items():
         monkeypatch.setenv(var, valor)
@@ -40,6 +45,14 @@ def _env_base(monkeypatch):
     # no .env real do desenvolvedor — por isso ficam como "" (setado acima,
     # não removido), o que também é "falsy" para notion_configured().
     monkeypatch.delenv("API_AUTH_TOKEN", raising=False)
+
+    # Config.Isso é essencial: sem apontar para um arquivo inexistente, o
+    # .config.local.json real do desenvolvedor (escrito pela tela de
+    # configuração) entraria nos testes e os tornaria dependentes da
+    # máquina de quem roda.
+    monkeypatch.setenv("CONFIG_FILE", str(tmp_path / "config-inexistente.json"))
+    monkeypatch.setattr(secrets_store, "caminho", lambda: tmp_path / "config-inexistente.json")
+
     reset_settings_cache()
     yield
     reset_settings_cache()
@@ -48,6 +61,52 @@ def _env_base(monkeypatch):
 @pytest.fixture
 def settings():
     return get_settings()
+
+
+@pytest.fixture
+def cliente_efetivo():
+    """Cliente HTTP com o agente substituído por um dublê.
+
+    Falar com Ollama, Google ou Notion de verdade não cabe em teste de
+    API. É função (e não um simples `with`) para poder entrar como
+    dependência de outros fixtures, como o `sessao`.
+    """
+    from unittest.mock import MagicMock
+
+    import agents.productivity_agent as am
+    from web import server
+
+    agente = MagicMock()
+    agente.perguntar.return_value = {"resposta": "Olá!", "ferramentas": []}
+    agente.ferramentas = []
+
+    async def fake_criar_agente():
+        return agente
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(am, "criar_agente", fake_criar_agente)
+        with TestClient(server.app) as cliente:
+            yield cliente, agente
+
+
+@pytest.fixture
+def cliente(cliente_efetivo):
+    """Cliente HTTP com agente falso, para quando o teste não precisa do
+    dublê em si."""
+    return cliente_efetivo[0]
+
+
+@pytest.fixture
+def sessao(cliente):
+    """Um id de sessão válido, emitido pelo endpoint — o mesmo caminho que o
+    navegador usa.
+
+    Desde a adoção das sessões assinadas, /api/chat e /api/reset recusam
+    qualquer id que o cliente tenha inventado. Os testes precisam de um id
+    de verdade, e não devem forjar a assinatura para isso, senão a proteção
+    nem estaria sendo testada.
+    """
+    return cliente.get("/api/sessao").json()["sessao"]
 
 
 @pytest.fixture

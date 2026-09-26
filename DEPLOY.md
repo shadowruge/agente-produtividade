@@ -33,17 +33,56 @@ em rede doméstica). Isso não é seguro com uma URL pública do Render.
 Agora:
 
 - Se `ENVIRONMENT=production` e `API_AUTH_TOKEN` não estiver definido, o
-  servidor recusa subir as rotas `/api/chat` e `/api/reset` (erro 500
-  explicando o motivo).
+  servidor recusa as rotas `/api/chat`, `/api/reset`, `/api/config` e
+  `/api/status` (erro 500 explicando o motivo).
 - Com `API_AUTH_TOKEN` definido, essas rotas exigem o header
-  `Authorization: Bearer <API_AUTH_TOKEN>`.
+  `Authorization: Bearer <API_AUTH_TOKEN>`. A comparação é feita com
+  `secrets.compare_digest`, sem vazar tempo.
 - Em desenvolvimento (`ENVIRONMENT=development`, padrão), sem o token,
   continua liberado — igual ao comportamento original, para não atrapalhar
   o uso local.
-- `web/static/index.html` (a interface web) ainda não envia esse header;
-  se for usá-la em produção, adicione o campo do token ali (ou coloque o
-  serviço atrás de algo como Cloudflare Access / Tailscale, como o README
-  já sugeria).
+- `/health` é a **única** rota sem autenticação: o Render precisa dela para
+  decidir se o serviço está vivo.
+- O token pode ser definido por variável de ambiente (recomendado em
+  produção) **ou** pela tela `/config` — mas a tela em produção exige o
+  token, então em produção defina por variável de ambiente.
+
+### A interface web já envia o token
+
+A tela de chat e a de configuração guardam o token no `sessionStorage` do
+navegador e o enviam em todas as chamadas. Em produção, o primeiro acesso
+pede o token no campo no topo da tela `/config`; o chat usa o mesmo valor.
+Nada mais precisa ser feito no deploy.
+
+### Sessões em produção
+
+O id de sessão é assinado com o `API_AUTH_TOKEN`. Duas consequências
+práticas:
+
+- trocar o token (por exemplo, se suspeitar de vazamento) **invalida
+  todas as conversas abertas**. Se o Render tiver reiniciado, as sessões
+  antigas também deixam de valer, porque o segredo temporário do
+  processo mudou. Não é um problema: o histórico é só em memória e já
+  teria sido perdido de qualquer forma.
+- chamar a API direto exige pedir uma sessão primeiro. Veja o exemplo no
+  README, seção 15.
+
+## 1.1 Tela de configuração em produção
+
+A tela `/config` grava as chaves em `.config.local.json`, na raiz do
+projeto. Em produção isso **não substitui** os Secret Files do Render:
+
+- variáveis de ambiente têm prioridade sobre o arquivo, por desenho;
+- o Render não tem disco persistente, então o arquivo se perde a cada
+  deploy.
+
+Ou seja: **em produção, continue usando o painel do Render** (Secret Files
+para `credentials.json`/`token.json`, e variáveis de ambiente para os
+tokens). A tela é para uso local. A tela mostra exatamente essa
+situação, marcando os campos com a etiqueta "vem do ambiente".
+
+Vale o mesmo aviso de segurança do README: essa tela grava chaves de API,
+por isso exige o token de acesso e falha fechada em produção.
 
 ## 2. Autenticação Google (`credentials.json` / `token.json`)
 
@@ -118,4 +157,32 @@ pytest
 ```
 
 Os testes não dependem de Ollama, Google ou Notion reais — tudo é mockado
-(veja `tests/conftest.py`).
+(veja `tests/conftest.py`), inclusive a tela de configuração e o
+`.config.local.json`, que é redirecionado para uma pasta temporária.
+
+## 7. Checklist de segurança
+
+O que este deploy faz por você, e o que fica com você:
+
+- [x] Escopos OAuth mínimos: `gmail.readonly` e `gmail.compose` — o
+      agente **não tem** permissão de enviar e-mail, mesmo que o modelo
+      tente.
+- [x] Segredos fora do git (`.gitignore` cobre `.env`, `token.json`,
+      `credentials.json` e `.config.local.json`). O CI falha se algum
+      deles for versionado por engano.
+- [x] `.config.local.json` com permissão `0600` e gravação atômica.
+- [x] Segredos write-only pela API: nenhum endpoint devolve o valor.
+- [x] Comparação de token em tempo constante.
+- [x] Ids de sessão assinados pelo servidor — um cliente não consegue
+      ler a conversa de outro, e trocar o token invalida as sessões
+      abertas.
+- [x] Rate limit no chat (20 msg/min por IP).
+- [x] Tela de configuração falha fechada em produção.
+- [x] Conteúdo de e-mail/Notion tratado como dado, não como instrução
+      (ver `SYSTEM_PROMPT`), contra prompt injection.
+- [x] CI com lint, formatação, tipos e testes, bloqueando o merge.
+- [ ] **Você:** o app do Google em modo de teste expira em ~7 dias. Mova
+      para "in production" na tela de consentimento, senão o `token.json`
+      precisa ser reenviado semanalmente.
+- [ ] **Você:** o Ollama acessível pela internet **não tem autenticação**.
+      Placing-o atrás de uma VPN ou proxy com senha é responsabilidade sua.

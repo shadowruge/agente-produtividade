@@ -3,3 +3,9 @@
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
 httpx>=0.27.0
+
+# Qualidade de código. Mesmas versões usadas no CI (ver
+# .github/workflows/ci.yml), para o resultado local bater com o do
+# pipeline.
+ruff>=0.9.0
+mypy>=1.14.0

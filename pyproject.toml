@@ -1,0 +1,94 @@
+# Configuração do ruff (lint + formatação) e do mypy.
+#
+# Alinhado ao estilo que o projeto já usava: linhas de até 100 colunas,
+# aspas duplas, imports ordenados. Nada aqui é uma opinionidade nova —
+# é o código existente transformado em regra, para que o estilo não
+# dependa de alguém lembrar.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle (erros)
+    "W",    # warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade (sintaxe moderna)
+    "B",    # bugbear (armadilhas comuns)
+    "C4",   # comprehensions
+    "SIM",  # simplify
+    "RET",  # return
+    "ARG",  # argumentos não usados
+    "PTH",  # usar pathlib em vez de os.path
+    "S",    # bandit: segurança
+    "BLE",  # except amplo demais
+    "RUF",
+]
+ignore = [
+    # Conflita com a formatação: o ruff quer as duas pontuações, o
+    # formatador não. O formatador ganha (é o que o CI checa).
+    "COM812",
+    # E501 fica por conta do `ruff format`, que já resolve as linhas de
+    # código. Sobram só strings e docstrings — e mexer nelas não é opção:
+    # o SYSTEM_PROMPT e as descrições das @tool vão literalmente para o
+    # modelo, e reformatá-las mudaria o comportamento do agente.
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Os testes trocam globais de propósito e usam dublês frouxos.
+"tests/*" = [
+    "S101",    # assert é o ponto do teste
+    "S105",    # "senha" aqui é fixture, não credencial real
+    "S106",    # idem, quando vira parâmetro
+    "ARG001",  # dublês recebem argumentos que ignoram
+    "ARG002",
+    "ARG003",
+    "ARG005",  # `lambda *a, **k: servico` nos mocks do Google/Notion
+    "B011",
+    "SIM117",
+    # `datetime(...)` sem tz é proposital: o teste compara a string
+    # formatada, e o código sob teste normaliza para o fuso configurado.
+    "DTZ001",
+]
+# O ponto de entrada faz argparse e chama uvicorn por string de import.
+"main.py" = ["S603"]
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "double"
+
+[tool.ruff.lint.isort]
+known-first-party = ["agents", "config", "tools", "web"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# --------------------------------------------------------------------------
+# mypy
+# --------------------------------------------------------------------------
+# Escolhas deliberadas:
+# - `disallow_untyped_defs` só no código de produção. Os testes usam
+#   dublês e fixtures whose tipos não importam nada; exigir anotação
+#   neles só produziria ruído.
+# - As bibliotecas de terceiros entram em `ignore_missing_imports` porque
+#   várias não têm stubs (notion-client, langchain-mcp-adapters). Sem
+#   isso o mypy vira um mural de "module has no attribute".
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+strict_equality = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false

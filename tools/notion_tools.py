@@ -17,7 +17,9 @@ def buscar_notion(consulta: str) -> str:
     """Busca páginas no Notion pelo título. Só encontra páginas compartilhadas com a integração."""
     resp = cast(
         dict,
-        get_client().search(query=consulta, filter={"property": "object", "value": "page"}, page_size=10),
+        get_client().search(
+            query=consulta, filter={"property": "object", "value": "page"}, page_size=10
+        ),
     )
     paginas = resp.get("results", [])
     if not paginas:

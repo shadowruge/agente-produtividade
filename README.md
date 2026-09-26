@@ -6,6 +6,7 @@ Assistente pessoal que roda um modelo de IA local (via [Ollama](https://ollama.c
 - 📧 Lê e-mails e cria **rascunhos** no Gmail (nunca envia sozinho)
 - 📝 Busca e cria notas em um banco de dados do Notion
 - 💬 Interface web de chat, com histórico por sessão
+- ⚙️ Tela de configuração para chaves de API, ferramentas e skills — sem precisar mexer no `.env`
 
 ---
 
@@ -17,12 +18,16 @@ Assistente pessoal que roda um modelo de IA local (via [Ollama](https://ollama.c
 4. [Instalar e configurar o Ollama](#4-instalar-e-configurar-o-ollama)
 5. [Configurar o Google (Calendar e Gmail)](#5-configurar-o-google-calendar-e-gmail)
 6. [Configurar o Notion](#6-configurar-o-notion)
-7. [Arquivo `.env` completo](#7-arquivo-env-completo)
-8. [Rodando o agente](#8-rodando-o-agente)
-9. [Usando o chat](#9-usando-o-chat)
-10. [Acesso de outros computadores na rede](#10-acesso-de-outros-computadores-na-rede)
-11. [Estrutura do projeto](#11-estrutura-do-projeto)
-12. [Solução de problemas](#12-solução-de-problemas)
+7. [Configurando pela tela web](#7-configurando-pela-tela-web)
+8. [Arquivo `.env` completo](#8-arquivo-env-completo)
+9. [Rodando o agente](#9-rodando-o-agente)
+10. [Usando o chat](#10-usando-o-chat)
+11. [Ferramentas e skills](#11-ferramentas-e-skills)
+12. [Acesso de outros computadores na rede](#12-acesso-de-outros-computadores-na-rede)
+13. [Estrutura do projeto](#13-estrutura-do-projeto)
+14. [Notas de versão](#14-notas-de-versão)
+15. [Solução de problemas](#15-solução-de-problemas)
+16. [Rodando os testes e as verificações](#16-rodando-os-testes-e-as-verificações)
 
 ---
 
@@ -181,14 +186,70 @@ O ID é o trecho de 32 caracteres logo antes do `?v=` — é isso que vai em `NO
 
 ---
 
-## 7. Arquivo `.env` completo
+## 7. Configurando pela tela web
 
-Copie `.env.example` para `.env` e preencha:
+Em vez de editar o `.env` na mão, você pode configurar tudo pela interface:
+
+```bash
+python main.py
+```
+
+e abrir **`http://127.0.0.1:8000/config`** (ou clicar em *Configuração* na barra lateral do chat).
+
+A tela tem quatro partes:
+
+| Seção | O que você configura |
+|---|---|
+| **Modelo de IA** | Modelo do Ollama, URL e fuso horário |
+| **Google** | Nomes dos arquivos `credentials.json` e `token.json` |
+| **Notion** | Token do Notion, ID do banco e nome da coluna de título |
+| **Segurança** | Token de acesso à API e origens do CORS |
+| **Ferramentas** | Liga e desliga cada ferramenta (agenda, Gmail, Notion) |
+| **Skills** | Instruções extras injetadas no system prompt do agente |
+
+### Onde as chaves ficam salvas
+
+Num arquivo chamado **`.config.local.json`**, na raiz do projeto. Ele:
+
+- **fica fora do git** (já está no `.gitignore`);
+- é criado com **permissão `0600`** — só o seu usuário lê;
+- é escrito de forma **atômica**, então nunca fica pela metade se o servidor cair no meio da gravação.
+
+Para guardar as chaves na nuvem (Render), use o painel do Render: *Environment → Secret Files*. Nesse caso a tela não altera o valor — variáveis de ambiente têm prioridade, por desenho (ver a tabela de precedência abaixo).
+
+### A tela nunca mostra uma chave de novo
+
+Os campos de segredo (Notion token e token de acesso) são **write-only**: depois de salvos, aparecem em branco com a marca "Salvo neste arquivo". Não existe forma de ler o valor pela interface, nem pela API — `/api/config` responde apenas se o campo está configurado ou não.
+
+Isso é proposital. Se a API devolvesse o valor, qualquer pessoa com acesso ao servidor leria suas chaves. Se você esquecer um valor, é só digitar o novo por cima.
+
+> ⚠️ A tela de configuração é o ponto mais sensível do sistema: é ela que grava as chaves. Por isso ela exige o mesmo token de acesso do chat, e em produção (`ENVIRONMENT=production`) **recusa funcionar sem token** em vez de ficar aberta. Se a tela aparecer vazia, preencha o token de acesso lá em cima.
+
+### Precedência dos valores
+
+Quando o mesmo campo está definido em mais de um lugar, vale esta ordem (da mais forte para a mais fraca):
+
+1. **Variáveis de ambiente** — é assim que o Render injeta as chaves em produção.
+2. **`.config.local.json`** — o que você salvou na tela.
+3. **`.env`** — o arquivo de texto, se existir.
+4. **Padrões do código**.
+
+Ou seja: a tela preenche o que o `.env` não define, mas **nunca sobrescreve uma variável de ambiente real**. Se você salvar um valor na tela e ele não mudar, quase sempre é porque existe uma variável de ambiente com o mesmo nome — a tela marca esses campos com a etiqueta "vem do ambiente".
+
+Um detalhe importante: um campo em branco significa "não definido". Por isso `API_AUTH_TOKEN=` (vazio) no `.env` é o mesmo que não ter a variável — ele não bloqueia o chat local.
+
+---
+
+## 8. Arquivo `.env` completo
+
+O `.env` é **opcional**. Se você configurar tudo pela tela, não precisa dele. Use se preferir manter as chaves em arquivo de texto, ou para fixar valores que a tela não deve alterar.
 
 ```bash
 cp .env.example .env      # Linux
 copy .env.example .env    # Windows
 ```
+
+Os campos de segredo (`NOTION_TOKEN`, `API_AUTH_TOKEN`) podem ficar vazios — a tela preenche. O `.env.example` já vem com tudo comentado, então copie e edite só o que quiser:
 
 ```env
 # Ollama
@@ -212,7 +273,7 @@ O valor de `NOTION_TITLE_PROP` deve ser **exatamente** o nome da coluna de títu
 
 ---
 
-## 8. Rodando o agente
+## 9. Rodando o agente
 
 ### Interface web (padrão)
 
@@ -236,7 +297,7 @@ python main.py --auth
 
 ---
 
-## 9. Usando o chat
+## 10. Usando o chat
 
 Exemplos de mensagens para testar cada integração:
 
@@ -251,9 +312,62 @@ Exemplos de mensagens para testar cada integração:
 
 O botão **Nova conversa** limpa o histórico da sessão atual.
 
+### Sobre as sessões
+
+Cada aba do navegador tem uma **sessão**, e o id dela é emitido e assinado pelo servidor (não é um `UUID` inventado no cliente). Isso tem duas consequências práticas:
+
+- Um id de sessão **não é adivinhável**. Sem assinatura, qualquer cliente que descobrisse o id de outra pessoa leria o histórico dela — que é onde fica o que o agente descobriu da sua agenda e dos seus e-mails.
+- Trocar o **token de acesso** invalida as sessões já abertas. Se você revogar o token, as conversas antigas param de responder, mesmo com o id em mãos.
+
+O histórico é **só em memória**: fica no servidor enquanto ele roda e some quando ele reinicia. Não é guardado em disco em lugar nenhum.
+
+> Isto **não** é autenticação multiusuário. Com um único token compartilhado, todos que o conhecem continuam sendo o mesmo usuário. Para isolar usuários de verdade seria preciso login com contas — o que muda a natureza do projeto, hoje feito para uma pessoa só.
+
+> Se você definiu um token de acesso, cole-o em **Configuração** uma vez. O chat e a tela de configuração compartilham o mesmo token, guardado no `sessionStorage` do navegador — não é preciso digitar de novo a cada acesso.
+
 ---
 
-## 10. Acesso de outros computadores na rede
+## 11. Ferramentas e skills
+
+As duas coisas se ajustam na tela de configuração (`/config`).
+
+### Ferramentas
+
+Cada ferramenta pode ser ligada e desligada. Desmarque, por exemplo, **Criar evento** se você quer que o agente só *consulte* a agenda e nunca escreva nela. O filtro vale também para as ferramentas vindas de servidores MCP.
+
+Ferramentas disponíveis:
+
+| Ferramenta | O que faz |
+|---|---|
+| `listar_eventos` | Lista eventos da agenda |
+| `criar_evento` | Cria eventos |
+| `listar_emails` | Lista e-mails |
+| `ler_email` | Lê o conteúdo de um e-mail |
+| `criar_rascunho` | Cria rascunhos (nunca envia) |
+| `buscar_notion` | Busca páginas no Notion |
+| `criar_nota` | Cria notas no banco do Notion |
+
+> ⚠️ **Desligar ferramentas é o controle mais forte que você tem.** O prompt do agente diz para confirmar antes de criar algo, mas um modelo pequeno rodando local pode não seguir a instrução à risca. Se você quer garantia, não dê a ferramenta a ele.
+
+### Skills
+
+Skills são instruções extras injetadas no system prompt do agente — a forma de adaptar o comportamento dele sem mexer no código. Cada skill tem um nome e um texto.
+
+Exemplos que funcionam bem:
+
+| Nome | Instrução |
+|---|---|
+| Agenda | Antes de criar qualquer evento, mostre dia, hora e título e espere eu confirmar. |
+| E-mails | Nunca resuma mais de 5 e-mails por vez. Sempre comece pelo remetente. |
+| Agenda | Ao listar eventos, agrupe por dia e diga quantos dias livres há. |
+| Idioma | Se eu escrever em inglês, responda em inglês. |
+| Notion | Prefira títulos curtos, no máximo 6 palavras. |
+
+Para remover uma skill, apague o texto dela e salve — a skill com instrução vazia é descartada.
+
+---
+
+## 12. Acesso de outros computadores na rede
 
 Por padrão, o servidor só aceita conexões da própria máquina (`127.0.0.1`). Para acessar de outro computador **na mesma rede local**:
 
@@ -268,18 +382,23 @@ Por padrão, o servidor só aceita conexões da própria máquina (`127.0.0.1`).
    ```
 3. Nos outros dispositivos da mesma rede, acesse `http://SEU_IP:8000`.
 
-> ⚠️ **Atenção:** o servidor não tem senha. Qualquer dispositivo que acessar esse endereço consegue ler seus e-mails, mexer na sua agenda e criar notas no Notion. Use isso apenas em redes de confiança (ex.: Wi-Fi doméstico). Para acesso pela internet (fora da rede local), não exponha a porta diretamente — prefira uma VPN como o [Tailscale](https://tailscale.com), e considere adicionar autenticação antes.
+> ⚠️ **Atenção:** por padrão o servidor não tem senha, e **qualquer dispositivo que acessar esse endereço consegue ler seus e-mails, mexer na agenda, criar notas no Notion e alterar a configuração do agente** (inclusive as chaves). Use apenas em redes de confiança (ex.: Wi-Fi doméstico).
+
+> Para uso em rede compartilhada ou na internet, **defina um token de acesso** em Configuração → *Segurança* (rode `openssl rand -hex 32`). Ele é guardado no navegador de cada dispositivo, então cada um precisa colar o token uma vez. Para acesso pela internet, prefira uma VPN como o [Tailscale](https://tailscale.com).
 
 ---
 
-## 11. Estrutura do projeto
+## 13. Estrutura do projeto
 
 ```
 agente-produtividade/
 │
 ├── config/
+│   ├── settings.py         # Configuração central (Settings) e precedência de valores
+│   ├── secrets_store.py    # Leitura/gravação do .config.local.json (tela de config)
 │   ├── google_auth.py      # Autenticação OAuth do Google
-│   └── notion_config.py    # Cliente e configuração do Notion
+│   ├── notion_config.py    # Cliente e configuração do Notion
+│   └── mcp_config.py       # Carregamento opcional de ferramentas MCP
 │
 ├── tools/
 │   ├── google_calendar.py  # Ferramentas de agenda (listar/criar eventos)
@@ -287,21 +406,140 @@ agente-produtividade/
 │   └── notion_tools.py     # Ferramentas do Notion (buscar, criar nota)
 │
 ├── agents/
-│   └── productivity_agent.py  # Monta o agente (LLM + ferramentas + histórico)
+│   └── productivity_agent.py  # Monta o agente (LLM + ferramentas + skills + histórico)
 │
 ├── web/
-│   ├── server.py           # API FastAPI (chat, status, reset)
-│   └── static/index.html   # Interface web de chat
+│   ├── server.py           # API FastAPI (chat, status, reset, config)
+│   └── static/
+│       ├── index.html      # Interface de chat
+│       └── config.html     # Tela de configuração
 │
-├── .env                     # Suas configurações (não versionar)
-├── .env.example             # Modelo do .env
+├── config/
+│   ├── settings.py         # Configuração central (Settings) e precedência de valores
+│   ├── secrets_store.py    # Leitura/gravação do .config.local.json (tela de config)
+│   ├── sessoes.py          # Ids de sessão assinados (impede ler a conversa de outro)
+│   ├── google_auth.py      # Autenticação OAuth do Google
+│   ├── notion_config.py    # Cliente e configuração do Notion
+│   └── mcp_config.py       # Carregamento opcional de ferramentas MCP
+│
+├── tools/
+│   ├── google_calendar.py  # Ferramentas de agenda (listar/criar eventos)
+│   ├── gmail.py            # Ferramentas de e-mail (ler, listar, criar rascunho)
+│   └── notion_tools.py     # Ferramentas do Notion (buscar, criar nota)
+│
+├── agents/
+│   └── productivity_agent.py  # Monta o agente (LLM + ferramentas + skills + histórico)
+│
+├── web/
+│   ├── server.py           # API FastAPI (chat, status, reset, sessão, config)
+│   └── static/
+│       ├── index.html      # Interface de chat
+│       └── config.html     # Tela de configuração
+│
+├── tests/                  # 121 testes (não precisam de Ollama, Google ou Notion)
+│
+├── .github/workflows/      # CI: lint, formatação, tipos, testes
+├── pyproject.toml          # Config do ruff e do mypy
+├── .env                    # Config opcional em texto (não versionar)
+├── .env.example            # Modelo do .env
+├── .config.local.json      # Config da tela (não versionar, permissão 0600)
 ├── requirements.txt
-└── main.py                  # Ponto de entrada (web, --cli, --auth)
+└── main.py                 # Ponto de entrada (web, --cli, --auth)
 ```
 
 ---
 
-## 12. Solução de problemas
+## 14. Notas de versão
+
+### LangChain 1.x
+
+O projeto usa a API `create_agent` do LangChain 1.x. A API anterior
+(`AgentExecutor` + `create_tool_calling_agent`) foi removida no 1.0, e o
+antigo teto `langchain<1.0` no `requirements.txt` deixou de ser necessário.
+
+O que mudou de verdade, além dos nomes:
+
+- **A data no prompt.** Em 0.x o prompt era um template com `{hoje}`
+  preenchido a cada chamada. Em 1.x o `system_prompt` é uma string fixa
+  na construção do agente — uma data escrita ali ficaria congelada até o
+  próximo reinício. A solução é um middleware `dynamic_prompt`, que é
+  reavaliado a cada turno (`montar_system_prompt`).
+- **O limite de iterações.** `max_iterations=6` virou
+  `ModelCallLimitMiddleware(run_limit=6)`. A diferença que importa: o
+  `AgentExecutor` parava devolvendo uma resposta parcial, enquanto o
+  LangGraph estoura uma exceção. O middleware devolve o comportamento
+  gracioso — o usuário vê "Model call limits exceeded" em vez de um 500.
+- **As ferramentas usadas.** Não existe mais `intermediate_steps`; o nome
+  da ferramenta é lido de `tool_calls` nas mensagens devolvidas.
+- **`handle_parsing_errors`** não tem equivalente. No 1.x o tratamento de
+  tool call malformada é interno ao agente.
+- **`langchain-community` saiu das dependências.** Nenhuma linha do
+  projeto o importava, e ele traz uma árvore de dependências grande que
+  só pesa no `pip install`.
+
+Se for atualizar de uma versão futura, o ponto de atenção é
+`create_agent`: ele é construído sobre o LangGraph, então mudanças de
+middleware afetam este arquivo.
+
+### Sessões assinadas
+
+O id de sessão é `<nonce>.<assinatura HMAC>`, emitido por
+`GET /api/sessao` e assinado com o `api_auth_token` (ou, em
+desenvolvimento, um segredo aleatório do processo). Sem isso, um cliente
+que copiasse o id de outro leria o histórico daquela conversa.
+
+Dois detalhes que parecem exagerados e não são:
+
+- **HMAC simples, sem PBKDF2.** Os nonces têm 192 bits de entropia, então
+  adivinhá-los exigiria 2^192 tentativas. Um KDF caro aqui só serviria
+  para dar a um cliente um vetor de negação de serviço (cada validação
+  gastaria dezenas de ms de CPU, disparáveis à vontade).
+- **Trocar o token invalida as sessões abertas.** É o que faz revogar o
+  token realmente cortar o acesso a conversas que já existiam.
+
+---
+
+## 15. Solução de problemas
+
+**A tela de configuração pede token mas eu não defini nenhum**
+Acontece quando existe `API_AUTH_TOKEN=` (vazio) no `.env` **e** há um token salvo no `.config.local.json`. Apague a linha do `.env` — campo em branco significa "não definido". Para destravar, apague o arquivo `.config.local.json` e suba o servidor de novo.
+
+**Salvei um valor na tela mas ele não mudou**
+Existe uma variável de ambiente com o mesmo nome, e ela tem prioridade por desenho (é assim que o Render injeta as chaves). A tela marca esses campos com a etiqueta "vem do ambiente". Remova a variável do `.env` ou do painel do Render para o valor da tela valer.
+
+**Esqueci o token de acesso**
+Os segredos são write-only por decisão de segurança — não dá para recuperá-los pela tela. Se o token da API for o esquecido, apague o `.config.local.json` e suba o servidor (o chat volta a ficar aberto, que é o padrão em desenvolvimento). Para o Notion, gere um novo em [notion.so/my-integrations](https://www.notion.so/my-integrations).
+
+**`401` ao usar a API direto (curl, script)**
+As rotas `/api/chat`, `/api/reset`, `/api/config`, `/api/sessao` e `/api/status` exigem o header `Authorization: Bearer <token>`. O `/health` é a única que não exige (o Render precisa dele).
+
+Lembre que `/api/chat` e `/api/reset` também exigem uma **sessão válida**, emitida pelo servidor:
+
+```bash
+# 1. pegue o token de acesso (se você definiu um)
+TOKEN="seu-token"
+
+# 2. peça um id de sessão
+SESSAO=$(curl -s http://127.0.0.1:8000/api/sessao \
+  -H "Authorization: Bearer $TOKEN" | python -c "import sys,json; print(json.load(sys.stdin)['sessao'])")
+
+# 3. converse
+curl -X POST http://127.0.0.1:8000/api/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"sessao\":\"$SESSAO\",\"mensagem\":\"oi\"}"
+```
+
+Um id inventado (`"sessao": "s1"`) é recusado com 401 — é o que impede que um cliente leia a conversa de outro.
+
+**`429` — muitas mensagens seguidas**
+Limite de 20 mensagens por minuto por IP, para uma enxurrada de pedidos não travar o chat. É só esperar um pouco.
+
+**"Model call limits exceeded" na resposta**
+O agente passou de 6 chamadas ao modelo numa mesma mensagem — normalmente um laço em que ele insiste numa ferramenta que falha. O sistema de proteção funcionou; vale verificar se alguma configuração (Notion, agenda) está com erro, porque é aí que costuma estar a causa. Se for um caso legítimo de muitas etapas, aumente `MAX_ITERACOES` em `agents/productivity_agent.py`.
+
+**A conversa sumiu**
+O histórico é só em memória. Ele some quando o servidor reinicia e quando você troca o token de acesso. Não há backup por desenho: é dado do seu e-mail e agenda, guardado em um arquivo em texto puro seria um risco maior.
 
 **`FileNotFoundError: Arquivo credentials.json não encontrado`**
 O arquivo baixado do Google Cloud não está na raiz do projeto, ou tem outro nome. Confira o passo [5.3](#53-criar-as-credenciais-oauth).
@@ -326,3 +564,31 @@ O Ollama não está rodando. Rode `ollama serve` (Linux) ou abra o aplicativo do
 
 **A interface web não abre / "não consigo alcançar o servidor"**
 Confirme que o `python main.py` está rodando e sem erros no terminal, e que você está acessando o endereço e a porta corretos (`http://127.0.0.1:8000` por padrão).
+
+---
+
+## 16. Rodando os testes e as verificações
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+| Comando | O que faz |
+|---|---|
+| `pytest` | Roda a suíte |
+| `ruff check .` | Procura erros de estilo e problemas comuns |
+| `ruff format .` | Aplica o padrão de formatação |
+| `mypy .` | Confere as anotações de tipo |
+
+São **121 testes** e nenhum precisa de Ollama, Google ou Notion: as integrações são mockadas. A cobertura inclui a tela de configuração, a precedência de valores, as sessões assinadas, o limite de requisições, o filtro de ferramentas, as skills, a sincronização do histórico e o ciclo de tools do agente.
+
+Os testes rodam isolados da sua máquina: o `.env` e o `.config.local.json` reais são ignorados (`tests/conftest.py` redireciona a configuração para uma pasta temporária), então rodar a suíte nunca mostra nem altera as suas chaves.
+
+Tudo isso roda sozinho no **GitHub Actions** a cada push em `main` e em cada pull request (`.github/workflows/ci.yml`). Um workflow que falha bloqueia o merge — inclusive se alguém versionar um arquivo de segredo por engano, que é uma checagem explícita do CI.
+
+### Sobre o lint
+
+A configuração está no `pyproject.toml`, em `ruff format` e em `mypy`. Duas escolhas que valem explicação:
+
+- **As linhas longas dentro de strings não são reformatadas.** O `SYSTEM_PROMPT` e as descrições das `@tool` vão literalmente para o modelo; quebrá-las mudaria o comportamento do agente. Por isso o `E501` (linha longa) está desligado.
+- **O `mypy` é estrito no código de produção e permissivo nos testes.** Nos testes, anotar os dublês não agrega nada; exigir anotações só na produção evita ruído sem perder a proteção.

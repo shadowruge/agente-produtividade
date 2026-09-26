@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuração — Agente de produtividade</title>
+<style>
+  :root {
+    --bg: #e8edf1;
+    --painel: #f6f8fa;
+    --tinta: #17222d;
+    --suave: #5e6e7d;
+    --linha: #cfd8df;
+    --petroleo: #0f6b6f;
+    --petroleo-escuro: #0b5155;
+    --ok: #2e8b57;
+    --erro: #b3372f;
+    --aviso: #a06a12;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10171d;
+      --painel: #18212a;
+      --tinta: #e6edf2;
+      --suave: #93a3b1;
+      --linha: #2a3743;
+      --petroleo: #2aa3a8;
+      --petroleo-escuro: #37b7bc;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--tinta); line-height: 1.5; margin: 0; }
+  button, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--petroleo); outline-offset: 2px; }
+
+  .pagina { max-width: 860px; margin: 0 auto; padding: 32px 20px 96px; }
+  header { margin-bottom: 28px; }
+  h1 { font-size: 1.5rem; font-weight: 650; letter-spacing: -0.02em; margin: 0 0 4px; }
+  header p { color: var(--suave); margin: 0; }
+  header a { color: var(--petroleo); }
+
+  .topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .token { display: flex; gap: 8px; align-items: center; }
+  .token input { width: 240px; }
+
+  .aviso {
+    background: var(--painel); border: 1px solid var(--linha);
+    border-left: 3px solid var(--aviso);
+    border-radius: 8px; padding: 12px 14px; margin: 20px 0; font-size: .9rem;
+  }
+  .aviso code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+
+  section {
+    background: var(--painel); border: 1px solid var(--linha);
+    border-radius: 12px; padding: 20px; margin-bottom: 18px;
+  }
+  section > h2 { font-size: 1.05rem; font-weight: 650; margin: 0 0 4px; }
+  section > p.sub { color: var(--suave); font-size: .875rem; margin: 0 0 16px; }
+
+  .campo { margin-bottom: 16px; }
+  .campo:last-child { margin-bottom: 0; }
+  label { display: block; font-weight: 550; font-size: .9rem; margin-bottom: 4px; }
+  .ajuda { color: var(--suave); font-size: .8rem; margin: 4px 0 0; }
+  input[type=text], input[type=password], textarea {
+    width: 100%; background: var(--bg); border: 1px solid var(--linha);
+    border-radius: 8px; padding: 9px 11px;
+  }
+  textarea { resize: vertical; min-height: 84px; font-family: ui-monospace, monospace; font-size: .85rem; }
+  input:focus-visible, textarea:focus-visible { border-color: var(--petroleo); outline-offset: 0; }
+
+  .linha-segredo { display: flex; gap: 8px; align-items: stretch; }
+  .linha-segredo input { flex: 1; }
+  .estado { font-size: .78rem; color: var(--suave); margin-top: 4px; display: block; }
+  .estado.salvo { color: var(--ok); }
+  .origem { font-size: .72rem; color: var(--suave); border: 1px solid var(--linha); border-radius: 999px; padding: 1px 8px; margin-left: 6px; }
+
+  .ferramentas { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+  .ferramenta { display: flex; gap: 9px; align-items: flex-start; border: 1px solid var(--linha); border-radius: 8px; padding: 10px 12px; }
+  .ferramenta input { margin: 3px 0 0; flex: none; }
+  .ferramenta b { font-weight: 550; font-size: .9rem; display: block; }
+  .ferramenta small { color: var(--suave); font-size: .78rem; }
+
+  .skill { border: 1px solid var(--linha); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .skill-head { display: flex; gap: 8px; margin-bottom: 8px; }
+  .skill-head input { flex: 1; }
+  .remover { background: transparent; border: 1px solid var(--linha); border-radius: 8px; padding: 6px 12px; cursor: pointer; color: var(--erro); }
+
+  .barra {
+    position: fixed; left: 0; right: 0; bottom: 0; background: var(--painel);
+    border-top: 1px solid var(--linha); padding: 12px 20px;
+    display: flex; gap: 10px; align-items: center; justify-content: center;
+  }
+  .barra .msg-fixa { flex: 1; text-align: center; font-size: .875rem; }
+  .btn {
+    background: var(--petroleo); color: #fff; border: 0; border-radius: 9px;
+    padding: 10px 22px; cursor: pointer; font-weight: 600;
+  }
+  .btn:hover { background: var(--petroleo-escuro); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.secundario { background: transparent; color: var(--tinta); border: 1px solid var(--linha); }
+</style>
+</head>
+<body>
+<div class="pagina">
+
+  <div class="topo">
+    <header>
+      <h1>Configuração do agente</h1>
+      <p>Chaves de API, ferramentas e skills. Ambiente: <b id="ambiente">—</b> · <a href="/">Voltar ao chat</a></p>
+    </header>
+    <div class="token">
+      <input type="password" id="token" placeholder="Token de acesso (API_AUTH_TOKEN)" autocomplete="off">
+      <button class="btn secundario" id="ver-token" type="button">Ver</button>
+    </div>
+  </div>
+
+  <div class="aviso">
+    As chaves salvas aqui vão para o arquivo <code id="arquivo">.config.local.json</code>, que
+    fica fora do git e é criado com permissão <code>0600</code> (só você lê).
+    Esta tela <strong>nunca mostra uma chave novamente</strong> — o campo fica em branco com a
+    marca “salvo”. Para trocar o valor, digite o novo. Para apagar, use o botão.
+    Variáveis de ambiente do servidor têm prioridade e não são alteradas por aqui.
+  </div>
+
+  <div id="conteudo"></div>
+</div>
+
+<div class="barra">
+  <div class="msg-fixa" id="feedback"></div>
+  <button class="btn secundario" id="recarregar" type="button">Recarregar</button>
+  <button class="btn" id="salvar" type="button">Salvar</button>
+</div>
+
+<script>
+  const GRUPOS = [
+    { id: "modelo", titulo: "Modelo de IA", sub: "Qual modelo roda o agente e de onde ele é chamado." },
+    { id: "google", titulo: "Google (Calendar e Gmail)", sub: "Os arquivos ficam na raiz do projeto. Gere o token com: python main.py --auth" },
+    { id: "notion", titulo: "Notion", sub: "O banco precisa ser compartilhado com a integração, senão a API retorna erro." },
+    { id: "mcp", titulo: "Servidores MCP (opcional)", sub: "Ferramentas de terceiros. Se ficar vazio, o agente usa só as nativas." },
+    { id: "seguranca", titulo: "Segurança", sub: "O token protege o chat e esta tela. Em produção ele é obrigatório." },
+  ];
+
+  const ROTULOS_FERRAMENTA = {
+    listar_eventos: "Listar eventos", criar_evento: "Criar evento",
+    listar_emails: "Listar e-mails", ler_email: "Ler e-mail",
+    criar_rascunho: "Criar rascunho", buscar_notion: "Buscar no Notion",
+    criar_nota: "Criar nota",
+  };
+  const DESCRICAO_FERRAMENTA = {
+    listar_eventos: "Consulta a agenda", criar_evento: "Cria eventos na agenda",
+    listar_emails: "Lista e-mails", ler_email: "Lê o conteúdo de um e-mail",
+    criar_rascunho: "Cria rascunhos (nunca envia)", buscar_notion: "Busca páginas",
+    criar_nota: "Cria notas no banco",
+  };
+
+  const $ = (id) => document.getElementById(id);
+  // Espelha sessionStorage do chat, para não pedir o token duas vezes.
+  const token = () => $("token").value.trim();
+  const cabecalhos = () => (token() ? { Authorization: "Bearer " + token() } : {});
+  const marcar = () => sessionStorage.setItem("api_token", token());
+
+  function avisar(texto, erro = false) {
+    const el = $("feedback");
+    el.textContent = texto;
+    el.style.color = erro ? "var(--erro)" : "var(--ok)";
+    if (texto) setTimeout(() => { if (el.textContent === texto) el.textContent = ""; }, 4000);
+  }
+
+  let config = null;
+
+  async function carregar() {
+    const r = await fetch("/api/config", { headers: cabecalhos() });
+    if (r.status === 401) return avisar("Token inválido ou ausente. Preencha o campo acima.", true);
+    if (!r.ok) return avisar("Erro ao carregar a configuração.", true);
+    config = await r.json();
+    $("arquivo").textContent = config.arquivo;
+    $("ambiente").textContent = config.ambiente;
+    desenhar();
+  }
+
+  function desenhar() {
+    const c = $("conteudo");
+    c.innerHTML = "";
+
+    for (const grupo of GRUPOS) {
+      const campos = config.campos.filter((f) => f.grupo === grupo.id);
+      if (!campos.length) continue;
+      const sec = document.createElement("section");
+      sec.innerHTML = `<h2>${grupo.titulo}</h2><p class="sub">${grupo.sub}</p>`;
+      for (const campo of campos) sec.appendChild(campoSegredo(campo) || campoNormal(campo));
+      c.appendChild(sec);
+    }
+
+    c.appendChild(secaoFerramentas());
+    c.appendChild(secaoSkills());
+  }
+
+  function campoNormal(campo) {
+    const atual = config.valores[campo.nome] || {};
+    const div = document.createElement("div");
+    div.className = "campo";
+    const tag = campo.tipo === "area" ? "textarea" : "input";
+    div.innerHTML = `
+      <label for="c-${campo.nome}">${campo.rotulo}<span class="origem" data-origem="${campo.nome}"></span></label>
+      ${tag === "textarea"
+        ? `<textarea id="c-${campo.nome}" name="${campo.nome}" rows="3">${escapar(atual.valor || "")}</textarea>`
+        : `<input type="text" id="c-${campo.nome}" name="${campo.nome}" value="${escapar(atual.valor || "")}">`}
+      <p class="ajuda">${campo.ajuda || ""}</p>`;
+    marcarOrigem(div, campo.nome, atual.origem);
+    return div;
+  }
+
+  function campoSegredo(campo) {
+    const atual = config.valores[campo.nome] || {};
+    const div = document.createElement("div");
+    div.className = "campo";
+    div.innerHTML = `
+      <label for="c-${campo.nome}">${campo.rotulo}<span class="origem" data-origem="${campo.nome}"></span></label>
+      <div class="linha-segredo">
+        <input type="password" id="c-${campo.nome}" name="${campo.nome}"
+               placeholder="${atual.configurado ? "••••••••  (já salvo — digite para trocar)" : "não configurado"}"
+               autocomplete="off">
+        <button class="remover" type="button" data-limpar="${campo.nome}">Apagar</button>
+      </div>
+      <span class="estado ${atual.configurado ? "salvo" : ""}" data-estado="${campo.nome}">${
+        atual.configurado ? "Salvo neste arquivo." : "Não configurado."
+      }</span>
+      <p class="ajuda">${campo.ajuda || ""}</p>`;
+    marcarOrigem(div, campo.nome, atual.origem);
+    div.querySelector("input").addEventListener("input", (e) => {
+      const st = div.querySelector("[data-estado]");
+      if (e.target.value.trim()) {
+        st.textContent = "Pronto para salvar.";
+        st.className = "estado";
+      } else {
+        st.textContent = atual.configurado ? "Salvo neste arquivo." : "Não configurado.";
+        st.className = "estado" + (atual.configurado ? " salvo" : "");
+      }
+    });
+    return div;
+  }
+
+  function marcarOrigem(raiz, nome, origem) {
+    const el = raiz.querySelector(`[data-origem="${nome}"]`);
+    if (!el) return;
+    el.textContent =
+      origem === "ambiente" ? "vem do ambiente"
+      : origem === "arquivo" ? "deste arquivo"
+      : "padrão";
+    if (origem === "ambiente") el.title = "Definido por variável de ambiente — a tela não altera esse valor.";
+  }
+
+  function secaoFerramentas() {
+    const sec = document.createElement("section");
+    sec.innerHTML = `<h2>Ferramentas</h2>
+      <p class="sub">Desmarque para o agente não usar. Ferramentas MCP, se houver, não aparecem aqui.</p>`;
+    const grade = document.createElement("div");
+    grade.className = "ferramentas";
+    const ativas = config.habilitadas.length ? config.habilitadas : config.ferramentas;
+    for (const nome of config.ferramentas) {
+      const rot = document.createElement("label");
+      rot.className = "ferramenta";
+      rot.innerHTML = `
+        <input type="checkbox" name="ferramenta" value="${nome}" ${ativas.includes(nome) ? "checked" : ""}>
+        <span><b>${ROTULOS_FERRAMENTA[nome] || nome}</b><small>${DESCRICAO_FERRAMENTA[nome] || ""}</small></span>`;
+      grade.appendChild(rot);
+    }
+    sec.appendChild(grade);
+    return sec;
+  }
+
+  function secaoSkills() {
+    const sec = document.createElement("section");
+    sec.id = "sec-skills";
+    sec.innerHTML = `<h2>Skills</h2>
+      <p class="sub">Instruções extras injetadas no system prompt do agente. Ex.: como formatar a agenda, que tom usar, o que nunca fazer.</p>`;
+    sec.appendChild(listaSkills(config.skills || []));
+    const add = document.createElement("button");
+    add.className = "btn secundario";
+    add.type = "button";
+    add.textContent = "+ Adicionar skill";
+    add.onclick = () => {
+      const lista = $("lista-skills");
+      lista.appendChild(blocoSkill({ nome: "", instrucoes: "" }));
+      lista.lastElementChild.querySelector("input").focus();
+    };
+    sec.appendChild(add);
+    return sec;
+  }
+
+  function listaSkills(skills) {
+    const div = document.createElement("div");
+    div.id = "lista-skills";
+    for (const s of skills) div.appendChild(blocoSkill(s));
+    return div;
+  }
+
+  function blocoSkill(skill) {
+    const div = document.createElement("div");
+    div.className = "skill";
+    div.innerHTML = `
+      <div class="skill-head">
+        <input type="text" data-skill-nome placeholder="Nome da skill (ex.: agenda)" value="${escapar(skill.nome || "")}">
+        <button class="remover" type="button">Remover</button>
+      </div>
+      <textarea data-skill-instrucoes rows="3"
+        placeholder="Instruções para o agente…">${escapar(skill.instrucoes || "")}</textarea>`;
+    div.querySelector(".remover").onclick = () => div.remove();
+    return div;
+  }
+
+  function coletar() {
+    const valores = {}, limpar = [];
+    for (const campo of config.campos) {
+      const el = $("c-" + campo.nome);
+      if (!el) continue;
+      if (campo.segredo) {
+        // Só envia se o usuário digitou algo: campo em branco = mantém.
+        if (el.value.trim()) valores[campo.nome] = el.value.trim();
+      } else {
+        valores[campo.nome] = el.value.trim();
+      }
+    }
+    document.querySelectorAll("[data-limpar]").forEach((b) => {
+      if (b.dataset.confirmado) limpar.push(b.dataset.limpar);
+    });
+
+    const ferramentas = [...document.querySelectorAll('input[name=ferramenta]:checked')]
+      .map((i) => i.value);
+
+    const skills = [...document.querySelectorAll(".skill")].map((s) => ({
+      nome: s.querySelector("[data-skill-nome]").value.trim(),
+      instrucoes: s.querySelector("[data-skill-instrucoes]").value.trim(),
+    })).filter((s) => s.nome || s.instrucoes);
+
+    return { valores, limpar, ferramentas, skills };
+  }
+
+  $("salvar").onclick = async () => {
+    marcar();
+    const b = $("salvar");
+    b.disabled = true;
+    try {
+      const r = await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...cabecalhos() },
+        body: JSON.stringify(coletar()),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 401) avisar("Token inválido ou ausente.", true);
+      else if (!r.ok) avisar(d.detail || "Erro ao salvar.", true);
+      else { avisar(d.mensagem || "Salvo."); await carregar(); }
+    } catch (e) {
+      avisar("Não consegui alcançar o servidor.", true);
+    } finally {
+      b.disabled = false;
+    }
+  };
+
+  $("recarregar").onclick = carregar;
+  $("ver-token").onclick = () => {
+    const i = $("token");
+    i.type = i.type === "password" ? "text" : "password";
+  };
+
+  // Confirmação em dois toques para apagar um segredo — evita perder a
+  // chave por engano, já que ela não pode ser recuperada pela tela.
+  $("conteudo").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-limpar]");
+    if (!b || b.dataset.confirmado) return;
+    b.dataset.confirmado = "1";
+    b.textContent = "Tem certeza?";
+    setTimeout(() => {
+      if (!b.dataset.confirmado) return;
+      delete b.dataset.confirmado;
+      b.textContent = "Apagar";
+    }, 4000);
+  });
+
+  function escapar(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  $("token").value = sessionStorage.getItem("api_token") || "";
+  $("token").addEventListener("change", () => { marcar(); carregar(); });
+  carregar();
+</script>
+</body>
+</html>

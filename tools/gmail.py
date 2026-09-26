@@ -9,7 +9,7 @@ from config.google_auth import get_service
 def _cabecalho(msg: dict, nome: str) -> str:
     for h in msg.get("payload", {}).get("headers", []):
         if h["name"].lower() == nome.lower():
-            return h["value"]
+            return str(h["value"])
     return ""
 
 
@@ -29,7 +29,13 @@ def listar_emails(consulta: str = "is:unread", maximo: int = 10) -> str:
     """Lista e-mails do Gmail. 'consulta' usa a sintaxe de busca do Gmail
     (ex: 'is:unread', 'from:fulano@x.com', 'newer_than:2d'). Retorna id, remetente, assunto e data."""
     svc = get_service("gmail", "v1")
-    ids = svc.users().messages().list(userId="me", q=consulta, maxResults=maximo).execute().get("messages", [])
+    ids = (
+        svc.users()
+        .messages()
+        .list(userId="me", q=consulta, maxResults=maximo)
+        .execute()
+        .get("messages", [])
+    )
     if not ids:
         return "Nenhum e-mail encontrado."
     linhas = []
@@ -37,7 +43,12 @@ def listar_emails(consulta: str = "is:unread", maximo: int = 10) -> str:
         m = (
             svc.users()
             .messages()
-            .get(userId="me", id=item["id"], format="metadata", metadataHeaders=["From", "Subject", "Date"])
+            .get(
+                userId="me",
+                id=item["id"],
+                format="metadata",
+                metadataHeaders=["From", "Subject", "Date"],
+            )
             .execute()
         )
         linhas.append(
@@ -49,7 +60,13 @@ def listar_emails(consulta: str = "is:unread", maximo: int = 10) -> str:
 @tool
 def ler_email(id_email: str) -> str:
     """Lê o conteúdo de um e-mail pelo id (obtido em listar_emails)."""
-    m = get_service("gmail", "v1").users().messages().get(userId="me", id=id_email, format="full").execute()
+    m = (
+        get_service("gmail", "v1")
+        .users()
+        .messages()
+        .get(userId="me", id=id_email, format="full")
+        .execute()
+    )
     corpo = _texto(m.get("payload", {})) or m.get("snippet", "")
     return (
         f"De: {_cabecalho(m, 'From')}\nAssunto: {_cabecalho(m, 'Subject')}\n"
@@ -64,5 +81,7 @@ def criar_rascunho(para: str, assunto: str, corpo: str) -> str:
     msg["to"] = para
     msg["subject"] = assunto
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    get_service("gmail", "v1").users().drafts().create(userId="me", body={"message": {"raw": raw}}).execute()
+    get_service("gmail", "v1").users().drafts().create(
+        userId="me", body={"message": {"raw": raw}}
+    ).execute()
     return f"Rascunho criado para {para} com o assunto '{assunto}'. Ele está na pasta Rascunhos do Gmail."

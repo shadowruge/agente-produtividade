@@ -1,12 +1,12 @@
-import os
 from pathlib import Path
+from typing import Any, cast
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-ROOT = Path(__file__).resolve().parent.parent
+from config.settings import get_settings
 
 # Se mudar os escopos, apague o token.json para autorizar de novo.
 SCOPES = [
@@ -17,11 +17,11 @@ SCOPES = [
 
 
 def _credentials_file() -> Path:
-    return ROOT / os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json")
+    return get_settings().google_credentials_path()
 
 
 def token_file() -> Path:
-    return ROOT / os.getenv("GOOGLE_TOKEN_FILE", "token.json")
+    return get_settings().google_token_path()
 
 
 def get_credentials() -> Credentials:
@@ -41,8 +41,12 @@ def get_credentials() -> Credentials:
             flow = InstalledAppFlow.from_client_secrets_file(str(_credentials_file()), SCOPES)
             creds = flow.run_local_server(port=0)
         token_file().write_text(creds.to_json())
-    return creds
+    # O fluxo pode devolver credenciais nulas segundo o tipo do
+    # google-auth-oauthlib; na prática isso significaria que o `if/else`
+    # acima não rodou, o que é impossível já que `creds` foi atribuído ou
+    # lançado. O cast documenta essa leitura em vez de silenciar o mypy.
+    return cast(Credentials, creds)
 
 
-def get_service(api: str, version: str):
+def get_service(api: str, version: str) -> Any:
     return build(api, version, credentials=get_credentials(), cache_discovery=False)

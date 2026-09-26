@@ -36,3 +36,10 @@ services:
         value: Name
       - key: MCP_SERVERS
         sync: false
+      # A tela de configuração grava em .config.local.json, que fica na
+      # raiz do projeto. O Render não tem disco persistente: o arquivo se
+      # perde a cada deploy. Por isso, em produção, use o painel (Secret
+      # Files e variáveis de ambiente) — a tela é para uso local.
+      # Variáveis de ambiente têm prioridade sobre o arquivo, por isso
+      # mesmo que a tela seja usada, ela não sobrescreve o que o Render
+      # injetou.

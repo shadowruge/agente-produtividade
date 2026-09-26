@@ -1,7 +1,5 @@
 from unittest.mock import AsyncMock, patch
 
-import pytest
-
 from config.mcp_config import load_mcp_tools
 
 

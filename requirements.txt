@@ -1,20 +1,29 @@
 # Núcleo do Agente e LLM
-# (AgentExecutor foi movido no langchain 1.x; por isso o teto <1.0)
-langchain>=0.3.0,<1.0
-langchain-community>=0.3.0,<1.0
-langchain-ollama>=0.2.0
+#
+# LangChain 1.x: `AgentExecutor` e `create_tool_calling_agent` foram
+# removidos no 1.0 e substituídos por `create_agent`. A migração está em
+# agents/productivity_agent.py — veja o docstring de lá para o mapa das
+# mudanças de API.
+#
+# `langchain-community` foi removido das dependências: nenhuma linha do
+# projeto o importava, e ele traz uma árvore de dependências grande que
+# só pesa no `pip install`.
+langchain>=1.0,<2.0
+langchain-ollama>=1.0,<2.0
 
 # Protocolo MCP: carregamento opcional de ferramentas de servidores MCP
 # externos (ver config/mcp_config.py). Se MCP_SERVERS não for configurado,
 # essas libs ficam ociosas e o agente roda normalmente só com as ferramentas
 # nativas (Google/Gmail/Notion).
 mcp>=1.20.0,<2.0.0
-langchain-mcp-adapters>=0.1.0,<0.2.0
+langchain-mcp-adapters>=0.3.0,<0.4.0
 
 # Configuração
 pydantic>=2.8.0,<3.0.0
 pydantic-settings>=2.5.0,<3.0.0
-python-dotenv==1.0.1
+# Sem pin exato: o resto do arquivo usa faixas. Fixar uma versão aqui era
+# inconsistência que só mordia em atualizações de segurança.
+python-dotenv>=1.0.0,<2.0.0
 
 # Interface web
 fastapi>=0.115.0
@@ -26,4 +35,9 @@ google-auth-httplib2>=0.1.0
 google-auth-oauthlib>=1.1.0
 
 # Integração Notion (Cliente Oficial)
+#
+# Sem teto superior de propósito: `notion_config.py` fixa
+# notion_version="2022-06-28" na headers da requisição, e esse argumento
+# continua valendo na 3.x — é o que mantém o formato de resposta que o
+# resto do código espera. Um teto em <3.0 forçaria o pin numa versão antiga.
 notion-client>=2.2.0

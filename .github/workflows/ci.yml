@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  # Uma execução por branch: commits novos cancelam a verificação antiga.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Formatação
+        # --check falha se algum arquivo não está no padrão. Assim o estilo
+        # não depende de ninguém lembrar, e o diff de um `ruff format` é
+        # sempre pequeno e revisável.
+        run: ruff format --check .
+
+      - name: Tipos
+        # `mypy .` e não a lista de pastas: o passo tem que cobrir também
+        # os testes, senão uma regressão de tipo passaria pelo CI.
+        run: mypy .
+
+      - name: Testes
+        run: pytest -q
+
+      - name: Segredos não versionados
+        # Rede de segurança: se um `credentials.json` ou `.config.local.json`
+        # for adicionado por engano, este passo falha em vez de deixar o
+        # segredo no histórico do git.
+        run: |
+          if git ls-files --error-unmatch .config.local.json credentials.json token.json .env 2>/dev/null; then
+            echo "::error::arquivo de segredo versionado no git"
+            exit 1
+          fi
+          echo "nenhum segredo versionado"

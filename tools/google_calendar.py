@@ -1,14 +1,14 @@
-import os
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from langchain_core.tools import tool
 
 from config.google_auth import get_service
+from config.settings import get_settings
 
 
 def _tz() -> ZoneInfo:
-    return ZoneInfo(os.getenv("TIMEZONE", "America/Sao_Paulo"))
+    return ZoneInfo(get_settings().timezone)
 
 
 @tool
@@ -42,12 +42,16 @@ def listar_eventos(dias: int = 7) -> str:
 def criar_evento(titulo: str, inicio: str, fim: str, descricao: str = "") -> str:
     """Cria um evento no Google Calendar.
     inicio e fim devem estar em ISO 8601 sem fuso, ex: 2026-09-22T14:00:00."""
-    tz = os.getenv("TIMEZONE", "America/Sao_Paulo")
+    tz = get_settings().timezone
     corpo = {
         "summary": titulo,
         "description": descricao,
         "start": {"dateTime": inicio, "timeZone": tz},
         "end": {"dateTime": fim, "timeZone": tz},
     }
-    criado = get_service("calendar", "v3").events().insert(calendarId="primary", body=corpo).execute()
-    return f"Evento criado: {criado.get('summary')} ({inicio} → {fim}). Link: {criado.get('htmlLink')}"
+    criado = (
+        get_service("calendar", "v3").events().insert(calendarId="primary", body=corpo).execute()
+    )
+    return (
+        f"Evento criado: {criado.get('summary')} ({inicio} → {fim}). Link: {criado.get('htmlLink')}"
+    )

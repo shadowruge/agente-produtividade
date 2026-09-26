@@ -125,6 +125,7 @@
       <li><span class="ponto" id="p-notion"></span><span>Notion<small id="s-notion"></small></span></li>
     </ul>
     <button class="nova" id="nova" type="button">Nova conversa</button>
+    <a class="nova" href="/config" style="text-decoration:none">Configuração</a>
   </aside>
 
   <main>
@@ -162,9 +163,20 @@
   const $ = (id) => document.getElementById(id);
   const coluna = $("coluna"), scroller = $("mensagens");
   const entrada = $("entrada"), enviar = $("enviar");
-  let sessao = sessionStorage.getItem("sessao") || crypto.randomUUID();
-  sessionStorage.setItem("sessao", sessao);
+  // O id de sessão é emitido e assinado pelo servidor: um id inventado
+  // aqui seria recusado. Enquanto não chegar, o chat espera.
+  let sessao = sessionStorage.getItem("sessao") || null;
   let ocupado = false;
+  let aguardandoSessao = null;
+
+  // O token é o mesmo da tela de configuração (sessionStorage), para não
+  // pedir duas vezes. Sem ele, /api/chat responde 401 em produção.
+  const apiToken = () => sessionStorage.getItem("api_token") || "";
+  const cabecalhos = () => {
+    const h = { "Content-Type": "application/json" };
+    if (apiToken()) h["Authorization"] = "Bearer " + apiToken();
+    return h;
+  };
 
   function rolar() { scroller.scrollTop = scroller.scrollHeight; }
 
@@ -186,6 +198,31 @@
     return el;
   }
 
+  async function garantirSessao(forcar) {
+    if (forcar) sessaoRecusada();
+    if (sessao) return sessao;
+    // Deduplica: várias mensagens seguidas antes da resposta não devem
+    // disparar vários pedidos de sessão.
+    if (!aguardandoSessao) {
+      aguardandoSessao = fetch("/api/sessao", { headers: cabecalhos() })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error("sessao " + r.status))))
+        .then((d) => {
+          sessao = d.sessao;
+          sessionStorage.setItem("sessao", sessao);
+          return sessao;
+        })
+        .finally(() => { aguardandoSessao = null; });
+    }
+    return aguardandoSessao;
+  }
+
+  // O servidor reiniciou: a assinatura do id guardado não confere mais
+  // (o segredo é novo). Pega um id válido em vez de travar o chat.
+  function sessaoRecusada() {
+    sessao = null;
+    sessionStorage.removeItem("sessao");
+  }
+
   async function enviarMensagem(texto) {
     texto = texto.trim();
     if (!texto || ocupado) return;
@@ -196,15 +233,21 @@
     adicionar("eu", texto);
     const aguarde = adicionar("agente digitando", "Pensando…");
     try {
+      await garantirSessao();
       const r = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: cabecalhos(),
         body: JSON.stringify({ sessao, mensagem: texto }),
       });
-      const dados = await r.json();
+      const dados = await r.json().catch(() => ({}));
       aguarde.remove();
-      if (!r.ok) adicionar("agente erro", dados.detail || "Erro ao falar com o agente.");
-      else adicionar("agente", dados.resposta, dados.ferramentas);
+      if (r.status === 401) {
+        // Token de API ou sessão: a mensagem na tela diz qual dos dois.
+        if (apiToken()) sessaoRecusada();
+        adicionar("agente erro", dados.detail || "Token inválido ou ausente. Abra Configuração e informe o token de acesso.");
+      } else if (!r.ok) {
+        adicionar("agente erro", dados.detail || "Erro ao falar com o agente.");
+      } else adicionar("agente", dados.resposta, dados.ferramentas);
     } catch (e) {
       aguarde.remove();
       adicionar("agente erro", "Não consegui alcançar o servidor. Verifique se o main.py está rodando.");
@@ -238,13 +281,15 @@
   );
 
   $("nova").addEventListener("click", async () => {
+    // Zera o histórico no servidor e pede um id novo. Se ainda não houver
+    // sessão válida, garantirSessao já emite uma.
+    try { await garantirSessao(); } catch (e) { /* servidor fora do ar */ }
     await fetch("/api/reset", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: cabecalhos(),
       body: JSON.stringify({ sessao }),
     }).catch(() => {});
-    sessao = crypto.randomUUID();
-    sessionStorage.setItem("sessao", sessao);
+    sessaoRecusada();
     location.reload();
   });
 
@@ -253,12 +298,17 @@
     $("s-" + nome).textContent = ok ? textoOk : textoFalha;
   }
 
-  fetch("/api/status").then((r) => r.json()).then((s) => {
+  fetch("/api/status", { headers: cabecalhos() }).then((r) => {
+    if (r.status === 401) throw new Error("401");
+    return r.json();
+  }).then((s) => {
     $("modelo").textContent = "Modelo: " + s.modelo;
     marcar("ollama", s.ollama, "Conectado", "Inicie o Ollama (ollama serve)");
     marcar("google", s.google, "Autorizado", "Rode: python main.py --auth");
-    marcar("notion", s.notion, "Configurado", "Defina NOTION_TOKEN no .env");
-  }).catch(() => { $("modelo").textContent = "Servidor indisponível"; });
+    marcar("notion", s.notion, "Configurado", "Defina NOTION_TOKEN");
+  }).catch(() => {
+    $("modelo").textContent = apiToken() ? "Servidor indisponível" : "Token necessário — abra Configuração";
+  });
 
   entrada.focus();
 </script>
